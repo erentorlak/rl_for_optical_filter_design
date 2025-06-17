@@ -1,0 +1,54 @@
+{
+    "ac_kwargs":	{
+        "act_emb":	true,
+        "act_emb_dim":	5,
+        "cell_size":	64,
+        "channels":	16,
+        "hidden_sizes":	[
+            64
+        ],
+        "hierarchical":	true,
+        "not_repeat":	true,
+        "ortho_init":	"on",
+        "scalar_thick":	false
+    },
+    "actor_critic":	"RNNActorCritic",
+    "beta":	0.01,
+    "clip_ratio":	0.2,
+    "env_fn":	"make",
+    "epochs":	300,
+    "exp_name":	"bandpass_test_ac-not_ac-hie_max10",
+    "gamma":	1,
+    "lam":	0.95,
+    "logger":	{
+        "<spinup.utils.logx.EpochLogger object at 0x7f8c6dd43d90>":	{
+            "epoch_dict":	{},
+            "exp_name":	"bandpass_test_ac-not_ac-hie_max10",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"./Experiments/bandpass_test/bandpass_test_ac-not_ac-hie_max10/bandpass_test_ac-not_ac-hie_max10_s42",
+            "output_file":	{
+                "<_io.TextIOWrapper name='./Experiments/bandpass_test/bandpass_test_ac-not_ac-hie_max10/bandpass_test_ac-not_ac-hie_max10_s42/progress.txt' mode='w' encoding='UTF-8'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"bandpass_test_ac-not_ac-hie_max10",
+        "output_dir":	"./Experiments/bandpass_test/bandpass_test_ac-not_ac-hie_max10/bandpass_test_ac-not_ac-hie_max10_s42"
+    },
+    "max_ep_len":	10,
+    "pi_lr":	5e-05,
+    "reward_factor":	1,
+    "save_freq":	10,
+    "seed":	42,
+    "spectrum_repr":	false,
+    "steps_per_epoch":	1000,
+    "target_kl":	0.01,
+    "train_pi_iters":	5,
+    "train_v_iters":	80,
+    "use_rnn":	true,
+    "vf_lr":	0.0003
+}

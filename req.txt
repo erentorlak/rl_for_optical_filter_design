@@ -1,0 +1,82 @@
+absl-py==2.1.0
+astor==0.8.1
+atari-py==0.2.9
+backcall==0.2.0
+box2d-py==2.3.8
+certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1725278078093/work/certifi
+cloudpickle==1.2.1
+comm==0.1.4
+cycler==0.11.0
+debugpy @ file:///home/conda/feedstock_root/build_artifacts/debugpy_1649586340600/work
+decorator==5.1.1
+entrypoints @ file:///home/conda/feedstock_root/build_artifacts/entrypoints_1643888246732/work
+exceptiongroup==1.2.2
+future==1.0.0
+gast==0.2.2
+google-pasta==0.2.0
+grpcio==1.62.3
+gym==0.15.7
+h5py==2.10.0
+importlib-metadata==6.7.0
+iniconfig==2.0.0
+ipykernel @ file:///home/conda/feedstock_root/build_artifacts/ipykernel_1666723258080/work
+ipython==7.34.0
+ipywidgets==8.1.6
+jedi==0.19.2
+joblib==1.3.2
+jupyter-client @ file:///home/conda/feedstock_root/build_artifacts/jupyter_client_1654730843242/work
+jupyter_core @ file:///home/conda/feedstock_root/build_artifacts/jupyter_core_1658332345782/work
+jupyterlab_widgets==3.0.14
+Keras-Applications==1.0.8
+Keras-Preprocessing==1.1.2
+kiwisolver==1.4.5
+Markdown==3.4.4
+MarkupSafe==2.1.5
+matplotlib==3.1.1
+matplotlib-inline==0.1.6
+mpi4py==4.0.3
+nest_asyncio @ file:///home/conda/feedstock_root/build_artifacts/nest-asyncio_1705850609492/work
+numpy==1.18.5
+opencv-python==4.11.0.86
+opt-einsum==3.3.0
+packaging==24.0
+pandas==1.3.5
+parso==0.8.4
+pexpect==4.9.0
+pickleshare==0.7.5
+Pillow==9.5.0
+pluggy==1.2.0
+prompt_toolkit==3.0.48
+protobuf==3.20.3
+psutil==7.0.0
+ptyprocess==0.7.0
+pyglet==1.5.0
+Pygments==2.17.2
+pyparsing==3.1.4
+pytest==7.4.4
+python-dateutil==2.9.0.post0
+pytz==2025.2
+pyzmq @ file:///home/conda/feedstock_root/build_artifacts/pyzmq_1652965483789/work
+-e git+https://github.com/OmerSaricam/rl-optical-design.git@c6495db4c4518d9fd5de94b4f62a6c4118deef1c#egg=RLMultilayer&subdirectory=rl-multilayer
+scipy==1.7.3
+seaborn==0.8.1
+six==1.17.0
+-e git+https://github.com/OmerSaricam/rl-optical-design.git@c6495db4c4518d9fd5de94b4f62a6c4118deef1c#egg=spinup&subdirectory=libs/spinningup
+tensorboard==1.15.0
+tensorflow==1.15.5
+tensorflow-estimator==1.15.1
+termcolor==2.3.0
+tmm==0.1.7
+tomli==2.0.1
+torch==1.3.1
+torchsummary==1.5.1
+torchvision==0.5.0
+tornado @ file:///home/conda/feedstock_root/build_artifacts/tornado_1648827244717/work
+tqdm==4.67.1
+traitlets==5.9.0
+typing_extensions==4.7.1
+wcwidth==0.2.13
+Werkzeug==2.2.3
+widgetsnbextension==4.0.14
+wrapt==1.16.0
+zipp==3.15.0

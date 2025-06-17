@@ -1,0 +1,54 @@
+{
+    "ac_kwargs":	{
+        "act_emb":	true,
+        "act_emb_dim":	5,
+        "cell_size":	64,
+        "channels":	16,
+        "hidden_sizes":	[
+            64
+        ],
+        "hierarchical":	false,
+        "not_repeat":	false,
+        "ortho_init":	"on",
+        "scalar_thick":	false
+    },
+    "actor_critic":	"MLPActorCritic",
+    "beta":	0.01,
+    "clip_ratio":	0.2,
+    "env_fn":	"make",
+    "epochs":	50,
+    "exp_name":	"selective_1500nm_absorber_max5",
+    "gamma":	1,
+    "lam":	0.95,
+    "logger":	{
+        "<spinup.utils.logx.EpochLogger object at 0x00000234A6C4D648>":	{
+            "epoch_dict":	{},
+            "exp_name":	"selective_1500nm_absorber_max5",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"./Experiments/selective_1500nm_absorber\\selective_1500nm_absorber_max5\\selective_1500nm_absorber_max5_s42",
+            "output_file":	{
+                "<_io.TextIOWrapper name='./Experiments/selective_1500nm_absorber\\\\selective_1500nm_absorber_max5\\\\selective_1500nm_absorber_max5_s42\\\\progress.txt' mode='w' encoding='cp1254'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"selective_1500nm_absorber_max5",
+        "output_dir":	"./Experiments/selective_1500nm_absorber\\selective_1500nm_absorber_max5\\selective_1500nm_absorber_max5_s42"
+    },
+    "max_ep_len":	5,
+    "pi_lr":	5e-05,
+    "reward_factor":	1,
+    "save_freq":	10,
+    "seed":	42,
+    "spectrum_repr":	false,
+    "steps_per_epoch":	1000,
+    "target_kl":	0.01,
+    "train_pi_iters":	5,
+    "train_v_iters":	80,
+    "use_rnn":	false,
+    "vf_lr":	0.0003
+}
