@@ -168,6 +168,271 @@ def cal_reward_selective_1500(R, T, A, target, wavelengths=None, target_waveleng
     return final_reward
 
 
+def cal_reward_selective_configurable(R, T, A, target, wavelengths=None, 
+                                    target_wavelength=1.5, window_width=0.05, 
+                                    enhancement_weight=0.3, penalty_weights=None):
+    '''
+    Configurable reward function for selective absorber tasks at any wavelength.
+    
+    This function generalizes the selective absorber reward to work with any target
+    wavelength and absorption window width. It maintains the same reward structure
+    as cal_reward_selective_1500 but allows flexible configuration.
+    
+    Args:
+        R, T, A: numpy arrays. Reflection, transmission, and absorption spectra
+        target: dict. Target spectra {'R': array, 'T': array, 'A': array}
+        wavelengths: numpy array. Wavelength points (in μm)
+        target_wavelength: float. Center wavelength for selective absorption (in μm)
+        window_width: float. Half-width of absorption window (in μm). 
+                     E.g., 0.05 = ±50nm window around target
+        enhancement_weight: float. Weight for enhancement terms vs base reward (0-1)
+        penalty_weights: dict. Custom penalty weights for fine-tuning behavior
+                        Default: {'transmission': 15.0, 'selectivity': 5.0, 'peak': 3.0, 
+                                'reflection': 2.0, 'peak_transmission': 10.0, 
+                                'off_peak_transmission': 8.0, 'sharpness': 1.5, 'uniformity': 1.0}
+        
+    Returns:
+        reward: float. Enhanced reward emphasizing selective behavior at target wavelength
+        
+    Examples:
+        # 1550nm telecom absorber with ±50nm window
+        reward = cal_reward_selective_configurable(R, T, A, target, wavelengths, 
+                                                 target_wavelength=1.55, window_width=0.05)
+        
+        # 980nm NIR absorber with ±40nm window  
+        reward = cal_reward_selective_configurable(R, T, A, target, wavelengths,
+                                                 target_wavelength=0.98, window_width=0.04)
+        
+        # Custom penalty weights for aggressive transmission suppression
+        custom_penalties = {'transmission': 25.0, 'peak_transmission': 15.0}
+        reward = cal_reward_selective_configurable(R, T, A, target, wavelengths,
+                                                 target_wavelength=1.3, window_width=0.06,
+                                                 penalty_weights=custom_penalties)
+    '''
+    
+    # Default penalty weights
+    default_penalties = {
+        'transmission': 15.0,           # Global transmission penalty
+        'selectivity': 5.0,             # Selectivity bonus weight
+        'peak': 3.0,                    # Peak absorption bonus
+        'reflection': 2.0,              # Off-peak reflection bonus
+        'peak_transmission': 10.0,      # Peak region transmission penalty
+        'off_peak_transmission': 8.0,   # Off-peak region transmission penalty
+        'sharpness': 1.5,               # Edge sharpness bonus
+        'uniformity': 1.0,              # Absorption uniformity bonus
+        'anti_broadband': 5.0           # Penalty for broadband absorbers/reflectors
+    }
+    
+    # Merge custom penalty weights with defaults
+    if penalty_weights is None:
+        penalty_weights = default_penalties
+    else:
+        penalties = default_penalties.copy()
+        penalties.update(penalty_weights)
+        penalty_weights = penalties
+    
+    # Base reward using MAE for spectrum matching
+    base_reward = 0
+    for k, v in target.items():
+        if k == 'R':
+            res = R
+        elif k == 'T':
+            res = T
+        else:
+            res = A
+            
+        # Use Mean Absolute Error (consistent with original)
+        mae = np.abs(res.squeeze() - v).mean()
+        base_reward += 1 - mae
+        
+    base_reward /= len(target)
+    
+    # Enhanced reward components for selective behavior
+    enhancement = 0
+    
+    if wavelengths is not None:
+        # 1. Global transmission penalty - heavily penalize any transmission anywhere
+        T_penalty = -penalty_weights['transmission'] * np.mean(T**2)
+        
+        # 2. Define absorption and reflection windows based on target wavelength
+        window_min = target_wavelength - window_width
+        window_max = target_wavelength + window_width
+        absorption_window = (wavelengths >= window_min) & (wavelengths <= window_max)
+        reflection_window = ~absorption_window
+        
+        if np.any(absorption_window) and np.any(reflection_window):
+            # Peak absorption strength in target window
+            peak_absorption = np.mean(A[absorption_window])
+            
+            # Off-peak reflection strength (should be high for selectivity)
+            off_peak_reflection = np.mean(R[reflection_window])
+            
+            # Off-peak absorption (should be low for selectivity)
+            off_peak_absorption = np.mean(A[reflection_window])
+            
+            # Transmission in both windows (should be zero everywhere)
+            peak_transmission = np.mean(T[absorption_window])
+            off_peak_transmission = np.mean(T[reflection_window])
+            
+            # 3. Selectivity bonus - reward sharp distinction between absorption and reflection regions
+            selectivity = peak_absorption - off_peak_absorption
+            selectivity_bonus = penalty_weights['selectivity'] * np.clip(selectivity, 0, 1)
+            
+            # 4. Peak quality bonus - reward strong absorption in target window
+            peak_bonus = penalty_weights['peak'] * peak_absorption
+            
+            # 5. Off-peak reflection bonus - reward high reflection away from peak
+            # BUT heavily penalize if there's NO absorption in target window (broadband reflector)
+            if peak_absorption < 0.1:  # If almost no absorption in target window
+                reflection_bonus = -penalty_weights['anti_broadband'] * off_peak_reflection  # Penalize pure reflectors
+            else:
+                reflection_bonus = penalty_weights['reflection'] * off_peak_reflection
+            
+            # 6. Transmission penalties for both regions
+            peak_T_penalty = -penalty_weights['peak_transmission'] * peak_transmission**2
+            off_peak_T_penalty = -penalty_weights['off_peak_transmission'] * off_peak_transmission**2
+            
+            # 7. Edge sharpness bonus - reward sharp transitions at absorption window boundaries
+            if len(wavelengths) > 10:  # Ensure enough points for gradient calculation
+                absorption_gradient = np.abs(np.gradient(A))
+                # Define edge regions around the absorption window boundaries
+                edge_width = window_width * 0.2  # 20% of window width for edge detection
+                lower_edge = (wavelengths >= (window_min - edge_width)) & (wavelengths <= (window_min + edge_width))
+                upper_edge = (wavelengths >= (window_max - edge_width)) & (wavelengths <= (window_max + edge_width))
+                edge_indices = np.where(lower_edge | upper_edge)[0]
+                
+                if len(edge_indices) > 0:
+                    edge_sharpness = np.mean(absorption_gradient[edge_indices])
+                    sharpness_bonus = penalty_weights['sharpness'] * np.clip(edge_sharpness, 0, 2)
+                else:
+                    sharpness_bonus = 0
+            else:
+                sharpness_bonus = 0
+            
+            # 8. Uniformity bonus within absorption window
+            if np.sum(absorption_window) > 1:  # Need at least 2 points for std calculation
+                absorption_uniformity = 1.0 - np.std(A[absorption_window])
+                uniformity_bonus = penalty_weights['uniformity'] * np.clip(absorption_uniformity, 0, 1)
+            else:
+                uniformity_bonus = 0
+            
+            # 9. Additional penalty for broadband absorbers (high absorption everywhere)
+            total_absorption = np.mean(A)
+            if total_absorption > 0.8 and peak_absorption - off_peak_absorption < 0.2:
+                # This is likely a broadband absorber, not selective
+                broadband_penalty = -penalty_weights['anti_broadband'] * total_absorption
+            else:
+                broadband_penalty = 0
+            
+            # Combine all enhancement terms
+            enhancement = (T_penalty + selectivity_bonus + peak_bonus + reflection_bonus + 
+                         peak_T_penalty + off_peak_T_penalty + sharpness_bonus + 
+                         uniformity_bonus + broadband_penalty)
+        else:
+            # Fallback if wavelength indexing fails
+            enhancement = T_penalty
+    else:
+        # If no wavelength info, just penalize transmission
+        enhancement = -penalty_weights['transmission'] * np.mean(T**2)
+    
+    # Final reward combines base matching with selective behavior enhancements
+    final_reward = base_reward + enhancement_weight * enhancement
+    
+    return final_reward
+
+
+def cal_reward_selective_adaptive(R, T, A, target, wavelengths=None, config=None):
+    '''
+    Adaptive wrapper for selective absorber rewards with preset configurations.
+    
+    This function provides an easy interface with common presets for different
+    wavelength ranges and applications.
+    
+    Args:
+        R, T, A: numpy arrays. Reflection, transmission, and absorption spectra
+        target: dict. Target spectra {'R': array, 'T': array, 'A': array}
+        wavelengths: numpy array. Wavelength points (in μm)
+        config: dict or str. Configuration dictionary or preset name
+                Supported presets: 'telecom_1550', 'nir_980', 'visible_633', 
+                                 'nir_1500', 'custom'
+        
+    Returns:
+        reward: float. Reward value for the given spectra
+        
+    Example:
+        # Using preset
+        reward = cal_reward_selective_adaptive(R, T, A, target, wavelengths, 'telecom_1550')
+        
+        # Using custom config
+        custom_config = {
+            'target_wavelength': 1.3,
+            'window_width': 0.08,
+            'enhancement_weight': 0.4,
+            'penalty_weights': {'transmission': 20.0}
+        }
+        reward = cal_reward_selective_adaptive(R, T, A, target, wavelengths, custom_config)
+    '''
+    
+    # Preset configurations for common applications
+    presets = {
+        'telecom_1550': {
+            'target_wavelength': 1.55,
+            'window_width': 0.05,  # ±50nm
+            'enhancement_weight': 0.3,
+            'penalty_weights': {'transmission': 15.0, 'selectivity': 5.0}
+        },
+        
+        'nir_1500': {
+            'target_wavelength': 1.5,
+            'window_width': 0.05,  # ±50nm  
+            'enhancement_weight': 0.3,
+            'penalty_weights': {'transmission': 15.0, 'selectivity': 5.0}
+        },
+        
+        'nir_980': {
+            'target_wavelength': 0.98,
+            'window_width': 0.04,  # ±40nm
+            'enhancement_weight': 0.35,
+            'penalty_weights': {'transmission': 18.0, 'selectivity': 6.0}
+        },
+        
+        'visible_633': {
+            'target_wavelength': 0.633,
+            'window_width': 0.03,  # ±30nm
+            'enhancement_weight': 0.4,
+            'penalty_weights': {'transmission': 20.0, 'selectivity': 7.0, 'sharpness': 2.0}
+        },
+        
+        'swir_2000': {
+            'target_wavelength': 2.0,
+            'window_width': 0.1,   # ±100nm
+            'enhancement_weight': 0.25,
+            'penalty_weights': {'transmission': 12.0, 'selectivity': 4.0}
+        }
+    }
+    
+    # Handle configuration input
+    if config is None:
+        config = 'nir_1500'  # Default to 1500nm
+    
+    if isinstance(config, str):
+        if config in presets:
+            config_dict = presets[config]
+        else:
+            raise ValueError(f"Unknown preset: {config}. Available: {list(presets.keys())}")
+    else:
+        config_dict = config
+    
+    # Call the configurable reward function with the specified configuration
+    return cal_reward_selective_configurable(
+        R, T, A, target, wavelengths,
+        target_wavelength=config_dict.get('target_wavelength', 1.5),
+        window_width=config_dict.get('window_width', 0.05),
+        enhancement_weight=config_dict.get('enhancement_weight', 0.3),
+        penalty_weights=config_dict.get('penalty_weights', None)
+    )
+
+
 class Memory:
     def __init__(self):
         self.actions = []
