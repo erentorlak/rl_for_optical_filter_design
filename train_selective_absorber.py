@@ -13,6 +13,7 @@ from spinup.utils.run_utils import ExperimentGrid
 from RLMultilayer.algos.ppo.ppo import ppo
 from RLMultilayer.algos.ppo import core
 from RLMultilayer.taskenvs.tasks import get_env_fn
+from RLMultilayer.utils import cal_reward, cal_reward_selective_1500, cal_reward_selective_configurable, cal_reward_selective_adaptive
 import torch
 import os
 from datetime import datetime
@@ -171,6 +172,10 @@ CONFIG = {
     # for each material.
     # Strategy: Keep these defaults when using the hierarchical model.
 
+    'channels': 16,
+    # Purpose: Number of channels in the CNN layers of the neural network.
+    # Strategy: 16 is the standard value used across all experiments in this codebase.
+
     # --------------------------------------------------------------------------
     # Part 6: PPO Algorithm Hyperparameters
     # These are core settings for the PPO learning algorithm. Best to leave
@@ -297,34 +302,47 @@ def create_reward_function_config(reward_type, peak_wavelength, absorption_windo
             preset = 'nir_1500'
             
         return {
-            'merit_func': 'cal_reward_selective_adaptive',
-            'config': preset
+            'merit_func': lambda R, T, A, target, **kwargs: cal_reward_selective_adaptive(
+                R, T, A, target, config=preset, **kwargs
+            )
         }
         
     elif reward_type == 'configurable':
-        config = {
-            'merit_func': 'cal_reward_selective_configurable',
-            'target_wavelength': peak_wavelength / 1000.0,  # Convert to micrometers
-            'window_width': (absorption_window_width / 2) / 1000.0,  # Half-width in micrometers
-        }
+        target_wavelength_um = peak_wavelength / 1000.0  # Convert to micrometers
+        window_width_um = (absorption_window_width / 2) / 1000.0  # Half-width in micrometers
+        
+        # Set default values
+        enhancement_weight = 0.3
+        penalty_weights = None
         
         # Add custom configuration if provided
         if custom_config is not None:
             if 'enhancement_weight' in custom_config:
-                config['enhancement_weight'] = custom_config['enhancement_weight']
+                enhancement_weight = custom_config['enhancement_weight']
             if 'penalty_weights' in custom_config:
-                config['penalty_weights'] = custom_config['penalty_weights']
-                
-        return config
+                penalty_weights = custom_config['penalty_weights']
+        
+        return {
+            'merit_func': lambda R, T, A, target, **kwargs: cal_reward_selective_configurable(
+                R, T, A, target, 
+                target_wavelength=target_wavelength_um,
+                window_width=window_width_um,
+                enhancement_weight=enhancement_weight,
+                penalty_weights=penalty_weights,
+                **kwargs
+            )
+        }
         
     elif reward_type == 'selective_1500':
+        target_wavelength_um = peak_wavelength / 1000.0  # Convert to micrometers
         return {
-            'merit_func': 'cal_reward_selective_1500',
-            'target_wavelength': peak_wavelength / 1000.0  # Convert to micrometers
+            'merit_func': lambda R, T, A, target, **kwargs: cal_reward_selective_1500(
+                R, T, A, target, target_wavelength=target_wavelength_um, **kwargs
+            )
         }
     elif reward_type == 'standard':
         return {
-            'merit_func': 'cal_reward'
+            'merit_func': cal_reward
         }
     else:
         raise ValueError(f"Unknown reward function type: {reward_type}")
@@ -417,12 +435,16 @@ def run_training():
         # Save configuration for reference
         import json
         config_file = os.path.join(output_dir, 'training_config.json')
+        # Create a JSON-serializable version of reward_config by excluding the function
+        reward_config_json = {k: v for k, v in reward_config.items() if k != 'merit_func'}
+        reward_config_json['merit_func_type'] = CONFIG['reward_function']
+        
         with open(config_file, 'w') as f:
             json.dump({
                 'CONFIG': CONFIG,
                 'task_name': task_name,
                 'task_config': task_config,
-                'reward_config': reward_config,
+                'reward_config': reward_config_json,
                 'timestamp': datetime.now().isoformat()
             }, f, indent=2)
         print(f"Configuration saved to: {config_file}")

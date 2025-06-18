@@ -1,0 +1,58 @@
+{
+  "CONFIG": {
+    "peak_wavelength": 2000,
+    "absorption_window_width": 50,
+    "epochs": 75,
+    "steps_per_epoch": 1000,
+    "num_runs": 1,
+    "max_layers": 6,
+    "discrete_thick": true,
+    "use_rnn": true,
+    "spectrum_repr": false,
+    "not_repeat": true,
+    "hierarchical": true,
+    "reward_function": "adaptive",
+    "custom_reward_config": {
+      "enhancement_weight": 0.3,
+      "penalty_weights": {
+        "transmission": 15.0,
+        "selectivity": 5.0,
+        "peak": 3.0,
+        "reflection": 2.0,
+        "peak_transmission": 10.0,
+        "off_peak_transmission": 8.0,
+        "sharpness": 1.5,
+        "uniformity": 1.0,
+        "anti_broadband": 5.0
+      }
+    },
+    "hidden_sizes": [
+      64
+    ],
+    "cell_size": 64,
+    "act_emb": true,
+    "act_emb_dim": 5,
+    "channels": 16,
+    "gamma": 1.0,
+    "beta": 0.01,
+    "lam": 0.95,
+    "train_pi_iters": 5,
+    "pi_lr": 5e-05,
+    "reward_factor": 1.0,
+    "exp_name": "swir_2000nm_tight",
+    "cpu_cores": 1,
+    "save_experiments": true
+  },
+  "task_name": "erent_1500_absorber_task_v0",
+  "task_config": {
+    "target_wavelength": 2.0,
+    "absorption_window": [
+      1.975,
+      2.025
+    ]
+  },
+  "reward_config": {
+    "merit_func_type": "adaptive"
+  },
+  "timestamp": "2025-06-18T23:03:35.465501"
+}

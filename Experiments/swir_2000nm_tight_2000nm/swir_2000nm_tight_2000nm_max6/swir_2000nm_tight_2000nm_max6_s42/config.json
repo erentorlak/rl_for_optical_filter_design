@@ -1,0 +1,54 @@
+{
+    "ac_kwargs":	{
+        "act_emb":	true,
+        "act_emb_dim":	5,
+        "cell_size":	64,
+        "channels":	16,
+        "hidden_sizes":	[
+            64
+        ],
+        "hierarchical":	true,
+        "not_repeat":	true,
+        "ortho_init":	"on",
+        "scalar_thick":	false
+    },
+    "actor_critic":	"RNNActorCritic",
+    "beta":	0.01,
+    "clip_ratio":	0.2,
+    "env_fn":	"make",
+    "epochs":	75,
+    "exp_name":	"swir_2000nm_tight_2000nm_max6",
+    "gamma":	1.0,
+    "lam":	0.95,
+    "logger":	{
+        "<spinup.utils.logx.EpochLogger object at 0x0000021E7B234048>":	{
+            "epoch_dict":	{},
+            "exp_name":	"swir_2000nm_tight_2000nm_max6",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"./Experiments/swir_2000nm_tight_2000nm\\swir_2000nm_tight_2000nm_max6\\swir_2000nm_tight_2000nm_max6_s42",
+            "output_file":	{
+                "<_io.TextIOWrapper name='./Experiments/swir_2000nm_tight_2000nm\\\\swir_2000nm_tight_2000nm_max6\\\\swir_2000nm_tight_2000nm_max6_s42\\\\progress.txt' mode='w' encoding='cp1254'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"swir_2000nm_tight_2000nm_max6",
+        "output_dir":	"./Experiments/swir_2000nm_tight_2000nm\\swir_2000nm_tight_2000nm_max6\\swir_2000nm_tight_2000nm_max6_s42"
+    },
+    "max_ep_len":	6,
+    "pi_lr":	5e-05,
+    "reward_factor":	1.0,
+    "save_freq":	10,
+    "seed":	42,
+    "spectrum_repr":	false,
+    "steps_per_epoch":	1000,
+    "target_kl":	0.01,
+    "train_pi_iters":	5,
+    "train_v_iters":	80,
+    "use_rnn":	true,
+    "vf_lr":	0.0003
+}
