@@ -976,3 +976,83 @@ def finetune(simulator, m0, x0, target, display=False, bounds=None):
         simulator.spectrum(m0, [np.inf]+x_opt+[np.inf], title=True, plot=True)
     
     return x_opt, res
+
+
+import numpy as np # Ensure numpy is imported
+
+def cal_reward_lorentzian_absorption(R, T, A, wavelengths,
+                                     absorption_center, absorption_hwhm,
+                                     lorentzian_absorption_target,
+                                     reflection_target,
+                                     transmission_target):
+    """
+    Calculates the reward for a structure aiming for a Lorentzian absorption peak.
+
+    Args:
+        R (np.ndarray): Simulated reflection spectrum.
+        T (np.ndarray): Simulated transmission spectrum.
+        A (np.ndarray): Simulated absorption spectrum.
+        wavelengths (np.ndarray): Wavelength points (in µm).
+        absorption_center (float): Center of the target Lorentzian peak (in µm).
+        absorption_hwhm (float): Half-width at half-maximum of the target peak (in µm).
+        lorentzian_absorption_target (np.ndarray): The ideal Lorentzian absorption spectrum.
+        reflection_target (np.ndarray): The ideal reflection spectrum (1 - lorentzian_absorption_target).
+        transmission_target (np.ndarray): The ideal transmission spectrum (all zeros).
+
+    Returns:
+        float: The calculated reward.
+    """
+
+    # 1. Transmission Penalty (Crucial)
+    # Strong penalty for any transmission, squared to penalize larger values more.
+    transmission_penalty_weight = 20.0  # Tunable
+    # Ensure T is always non-negative before squaring, though it should be.
+    # Using np.mean(np.maximum(T, 0)**2) for robustness, though T should be >= 0.
+    reward_transmission = -transmission_penalty_weight * np.mean(T**2)
+
+
+    # 2. Lorentzian Absorption Peak Fitness (Primary Goal for Absorption)
+    # Focus on the region around the peak, e.g., center +/- 4*HWHM, or full range if target is defined that way
+    # The `lorentzian_absorption_target` should ideally be zero outside the desired peak region.
+
+    # We will calculate MSE against the provided lorentzian_absorption_target directly.
+    # This target should be correctly shaped (Lorentzian in band, zero outside).
+    mse_absorption_overall = np.mean((A - lorentzian_absorption_target)**2)
+
+    absorption_fitness_weight = 1.5 # Tunable, increased weight as it's a primary objective
+    # Reward for matching the Lorentzian shape (1 - MSE)
+    # MSE is always >= 0. So 1-MSE can be <=1.
+    reward_absorption_shape = absorption_fitness_weight * (1.0 - mse_absorption_overall)
+
+
+    # 3. Reflection Fitness
+    # The reflection_target is `1 - lorentzian_absorption_target` (assuming T_target is zero)
+    mse_reflection_overall = np.mean((R - reflection_target)**2)
+    reflection_fitness_weight = 1.0 # Tunable
+    reward_reflection_shape = reflection_fitness_weight * (1.0 - mse_reflection_overall)
+
+    # Total Reward:
+    # Start with a base that can go negative (e.g. -MSEs) and add positive components,
+    # or scale 1-MSE terms.
+    # For now, sum of weighted (1-MSE) terms and direct penalties.
+    # The reward_transmission is already a penalty.
+
+    # Normalizing the MSE components to be rewards:
+    # Max reward for absorption shape is absorption_fitness_weight
+    # Max reward for reflection shape is reflection_fitness_weight
+    # Max penalty for transmission is -infinity, but practically bounded by -transmission_penalty_weight if T=1 everywhere.
+
+    total_reward = (reward_transmission +
+                    reward_absorption_shape +
+                    reward_reflection_shape
+                   )
+
+    # Adding a small constant bonus if peak absorption is high and in the right place
+    # to encourage finding the peak initially.
+    peak_idx = np.argmin(np.abs(wavelengths - absorption_center))
+    if A[peak_idx] > 0.8 and lorentzian_absorption_target[peak_idx] > 0.8 : # if actual peak is high and target peak is high
+        # and if the max absorption is close to the center
+        if np.abs(wavelengths[np.argmax(A)] - absorption_center) < absorption_hwhm :
+             total_reward += 0.5 # Small encouragement bonus
+
+    return total_reward

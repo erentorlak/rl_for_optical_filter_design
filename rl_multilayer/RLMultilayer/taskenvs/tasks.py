@@ -3,7 +3,7 @@ Return tasks
 """
 import numpy as np
 from RLMultilayer.taskenvs.task_envs import TMM
-from RLMultilayer.utils import TMM_sim, cal_reward, cal_reward_selective_1500
+from RLMultilayer.utils import TMM_sim, cal_reward, cal_reward_selective_1500, cal_reward_selective_configurable, cal_reward_selective_adaptive, cal_reward_lorentzian_absorption # Added new reward function
 import gym
 
 eps=1e-5
@@ -23,6 +23,8 @@ def get_env_fn(env_name, **kwargs):
         return absorber_filter_task(**kwargs)
     elif env_name == 'erent_1500_absorber_task_v0':
         return erent_1500_absorber_task_v0(**kwargs)
+    elif env_name == 'LorentzianAbsorber2000nm-v0': # New condition
+        return lorentzian_absorption_task(**kwargs) # Calling the new task function
     else:
         try:
             return lambda: gym.make(env_name)
@@ -335,103 +337,94 @@ def erent_1500_absorber_task_v0(**kwargs):
     return make
 
 
+############################################################
+# Lorentzian Absorption Peak Task (1975-2025 nm)           #
+############################################################
+def lorentzian_absorption_task(**kwargs):
+
+    # 1. Define Wavelengths (0.4 to 2.5 µm)
+    lamda_low = 0.4
+    lamda_high = 2.5
+    # Ensure consistent high resolution, e.g., 5nm or 10nm. Using 10nm for broader range.
+    wavelengths = np.arange(lamda_low, lamda_high + 1e-3, 0.01)
+
+    # 2. Define Materials
+    # Comprehensive list covering VIS to NIR, including good metals and dielectrics
+    materials = ['Ag', 'Al', 'Al2O3', 'Cr', 'Ge', 'HfO2', 'MgF2', 'Ni', 'Si', 'SiO2', 'Ti', 'TiO2', 'Fe2O3', 'SiC', 'Si3N4', 'TiN', 'ZnO', 'ZnS', 'ZnSe']
+    # Ensure these materials have .csv files in the 'data/' directory and cover the spectrum
+
+    # 3. Instantiate Simulator (TMM_sim)
+    # Using 'Ag' (Silver) as substrate to ensure high reflection and no transmission.
+    # Thickness of 200nm for substrate is optically opaque for Ag.
+    simulator = TMM_sim(materials, wavelengths, substrate='Ag', substrate_thick=200)
+
+    # 4. Define Thickness List (for discrete optimization)
+    # 10 nm to 300 nm in 5 nm steps
+    thickness_list = np.arange(10, 301, 5)
+
+    # 5. Define Target Spectrum Parameters for Lorentzian Peak
+    absorption_center = 2.0  # 2000 nm
+    absorption_fwhm = 0.05   # 50 nm FWHM
+    absorption_hwhm = absorption_fwhm / 2.0 # 25 nm HWHM
+
+    # 6. Generate Ideal Target Spectra
+    # Target Transmission: Zero everywhere
+    target_T_ideal = np.zeros_like(wavelengths)
+
+    # Target Lorentzian Absorption:
+    # Peak is defined by Lorentzian shape, zero absorption outside a defined band
+    # For the target array, let's make it zero outside a slightly wider band than FWHM, e.g., +/- 10*HWHM
+    lorentzian_band_min = absorption_center - 10 * absorption_hwhm # 2.0 - 0.25 = 1.75 µm
+    lorentzian_band_max = absorption_center + 10 * absorption_hwhm # 2.0 + 0.25 = 2.25 µm
+
+    lorentzian_A_ideal = np.zeros_like(wavelengths)
+    active_indices = (wavelengths >= lorentzian_band_min) & (wavelengths <= lorentzian_band_max)
+
+    lorentzian_A_ideal[active_indices] = (absorption_hwhm**2) / \
+                                     ((wavelengths[active_indices] - absorption_center)**2 + absorption_hwhm**2)
+
+    # Target Reflection: 1 - Ideal Absorption (since T_ideal is 0)
+    target_R_ideal = 1.0 - lorentzian_A_ideal
+
+    # 7. Prepare `target_for_env` dictionary (can be empty if lambda captures all)
+    # This dict is passed to the merit function by the environment.
+    # Our new reward function gets most params directly via lambda.
+    target_for_env = {
+        # Optional: could pass descriptive strings or the arrays themselves if preferred
+        # 'description': 'Target for Lorentzian absorber 2000nm, 50nm FWHM'
+    }
+
+    # 8. Define Merit Function using a lambda to pass necessary parameters
+    merit_func = lambda R_sim, T_sim, A_sim, target_dict_ignored: \
+        cal_reward_lorentzian_absorption(
+            R_sim, T_sim, A_sim,
+            wavelengths,
+            absorption_center, absorption_hwhm,
+            lorentzian_A_ideal, # The ideal Lorentzian absorption shape
+            target_R_ideal,     # The ideal reflection (1 - A_lorentzian)
+            target_T_ideal      # The ideal transmission (all zeros)
+        )
+
+    # 9. Configure Environment
+    config = {
+        'wavelengths': wavelengths,
+        "materials": materials,
+        'target': target_for_env,
+        "merit_func": merit_func,
+        "simulator": simulator,
+        **kwargs  # Pass through other kwargs like 'discrete_thick', 'max_layers'
+    }
+
+    if kwargs.get('discrete_thick', True): # Default to discrete thickness
+        config['discrete_thick'] = True
+        config['thickness_list'] = thickness_list
+    else:
+        config['discrete_thick'] = False
 
 
-# def absorber_filter_task(**kwargs):
-#     # --- 1. Define extended wavelength range (e.g., 1000–3000 nm) ---
-#     lamda_low = 1.0   # 1000 nm
-#     lamda_high = 3.0  # 3000 nm
-#     wavelengths = np.arange(lamda_low, lamda_high + 1e-3, 0.01)  # 10 nm resolution
+    # 10. Return a make function that creates the environment instance
+    def make():
+        env = TMM(**config)
+        return env
 
-#     # --- 2. Define available materials for the layer stack ---
-#     materials = ['SiO2', 'TiO2', 'Ge', 'Si', 'Al2O3', 'MgF2']
-#     #materials = ['TiO2', 'SiO2', 'Cr', 'Ni', 'Ge', 'Al2O3']
-
-
-#     # --- 3. Create TMM simulator with a semi-infinite transparent substrate (Glass) ---
-#     simulator = TMM_sim(materials, wavelengths, substrate='Glass', substrate_thick=500)
-
-#     # --- 4. Define allowed thickness values (in nm) ---
-#     thickness_list = np.arange(10, 1001, 10)  # 10–1000 nm
-
-#     # --- 5. Define target reflection spectrum ---
-#     w0 = 2.0   # 2000 nm resonance center
-#     gamma = 0.05  # 50 nm width (in μm, consistent with wavelength scale)
-
-#     # --- 6. Default: reflect everything (R = 1), transmit nothing (T = 0) ---
-#     R_target = np.ones_like(wavelengths)
-#     T_target = np.zeros_like(wavelengths)
-
-#     # --- 7. In 1800–2200 nm range, suppress reflection and transmission (force absorption) ---
-#     absorption_band = (wavelengths >= 1.8) & (wavelengths <= 2.2)
-#     R_target[absorption_band] = 1 - gamma**2 / ((wavelengths[absorption_band] - w0)**2 + gamma**2)
-#     T_target[absorption_band] = 0.0  # force zero transmission in absorption region
-
-#     # --- 8. Set target spectra for reflection and transmission ---
-#     target = {'R': R_target, 'T': T_target}
-
-#     # --- 9. Construct simulation environment configuration ---
-#     config = {
-#         'wavelengths': wavelengths,
-#         'materials': materials,
-#         'target': target,
-#         'merit_func': cal_reward,
-#         'simulator': simulator,
-#         **kwargs
-#     }
-
-#     if kwargs.get('discrete_thick', False):
-#         config['discrete_thick'] = True
-#         config['thickness_list'] = thickness_list
-
-#     def make():
-#         return TMM(**config)
-
-#     return make
-
-
-
-
-
-# def bandpass_filter_task(**kwargs):
-#     lamda_low = 0.4
-#     lamda_high = 2.0
-#     wavelengths = np.arange(lamda_low, lamda_high + 1e-3, 0.01)
-#     # 400 nm-2000 nm arası dalga boyu tanımlandı. Ajan bu dalga boyu için hedefe ulaşmaya çalışacak.
-
-#     # materials = ['SiO2', 'TiO2', 'CdO', 'Ge', 'Si', 'Al2O3', 'MgF2'] 
-#     materials = ['SiO2', 'TiO2', 'Ge', 'Si', 'Al2O3', 'MgF2'] 
-#     # Neden bu malzemeleri seçtik? Farklı kırılma indislerine (n) sahipler. 
-#     # Görünür ve yakın IR (Vis–NIR) aralığında optik olarak aktifler
-#     # Aralarında yüksek kontrastlı çiftler oluşturulabiliyor → bu, filtre performansını artırır
-#     simulator = TMM_sim(materials, wavelengths, substrate='Glass', substrate_thick=500)
-#     # Substrate olarak glass seçildi. Substrate, yani alt tabaka, tüm katmanların üstüne dizildiği fiziksel temel yüzeydir.
-#     # Substare kalınlığı neden 500? Genellikle substrate kalınlığı çok büyükse, optik olarak sonsuz gibi davranır. 
-#     # 500 nm, TMM simülasyonları için makul bir fiziksel kalınlıktır (ama çok kritik değil)
-
-#     thickness_list = np.arange(15, 201, 5)
-#     # discrete_thick = True seçeneği kullanıldığında geçerlidir
-#     # Ajan, her katman için bu listeden bir kalınlık seçmek zorundadır
-#     # Katman kalınlığı 15, 20, 25, ..., 200 nm olabilir
-#     # Neden 15–200 aralığı? 15 nm'den daha ince tabakalar üretimde zor olabilir. 200 nm'den kalın tabakalar da hem üretim hem de spektral etki açısından anlamsız olabilir
-
-#     # 🎯 Bandpass hedefi (örneğin 1950–2050 nm arası geçirgenlik 1, diğerleri 0)
-#     target = {'T': np.where((wavelengths >= 1.95) & (wavelengths <= 2.05), 1.0, 0.0)}
-
-#     config = {
-#         'wavelengths': wavelengths,
-#         'materials': materials,
-#         'target': target,
-#         'merit_func': cal_reward,
-#         'simulator': simulator,
-#         **kwargs
-#     }
-
-#     if kwargs.get('discrete_thick', False):
-#         config['discrete_thick'] = True
-#         config['thickness_list'] = thickness_list
-
-#     def make():
-#         return TMM(**config)
-
-#     return make
+    return make
